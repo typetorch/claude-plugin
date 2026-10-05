@@ -1,0 +1,15 @@
+{
+	"name": "typetorch",
+	"owner": {
+		"name": "TypeTorch",
+		"url": "https://github.com/typetorch"
+	},
+	"description": "Claude Code plugins for TypeTorch: hot-swap deploys for roblox-ts Roblox games",
+	"plugins": [
+		{
+			"name": "typetorch",
+			"source": "./plugins/typetorch",
+			"description": "Migrate a roblox-ts game to TypeTorch, or set up a new one: the typetorch-migrate skill"
+		}
+	]
+}

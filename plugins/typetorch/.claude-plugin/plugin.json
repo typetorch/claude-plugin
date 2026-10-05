@@ -1,0 +1,13 @@
+{
+	"name": "typetorch",
+	"version": "0.1.0",
+	"description": "TypeTorch for Claude Code: the typetorch-migrate skill migrates a roblox-ts game to TypeTorch (or sets up a new one) and never touches keys, Roblox or deploys",
+	"author": {
+		"name": "TypeTorch",
+		"url": "https://github.com/typetorch"
+	},
+	"homepage": "https://github.com/typetorch/docs",
+	"repository": "https://github.com/typetorch/claude-plugin",
+	"license": "MIT",
+	"keywords": ["roblox", "roblox-ts", "typetorch", "hot-reload", "migration"]
+}
