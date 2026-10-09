@@ -14,20 +14,20 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
 1. Never create, ask for, read, print or store secrets: Open Cloud keys, signing key files
    (`~/.config/typetorch/keys/*`), pairing codes. Don't open `.env` or the file named by `TYPETORCH_ENV_FILE`.
 2. Never act on Roblox: no `typetorch` upload, deploy (not even `--dry-run`), promote, rollback, approve, reject, pin,
-   deployments, branch ls, config push, access push, kernel deploy (not even `--dry-run`, except a kernel update the
+   deployments, branch ls, settings, access push, kernel deploy (not even `--dry-run`, except a kernel update the
    user asked for: see "Kernel updates"), kernel restore, keys, assets sync/status, test --cloud, servers, report,
-   alerts, fleet setup, update, doctor; no place publish; no remote-claude (`typetorch dev`), analytics server or
+   alerts, backend setup, update, doctor; no place publish; no remote-claude (`typetorch dev`), analytics server or
    tunnel. These are user steps.
 3. Never push. Commit locally on `typetorch-migration`.
 4. Don't edit `node_modules/@typetorch/*`, the reference `../template` or any TypeTorch checkout: copy from them.
 5. No new RemoteEvents, `loadstring`, `_G`, disabled guards or settings changes.
 6. Don't change player data formats, store names or keys.
 7. Never invent ids: the user's, or placeholder `1`.
-8. On npm: every `@typetorch/*` package except analytics (`bun install` in the template gets them; `npx
-   @typetorch/cli` works too). Built: kernel patch deploys (`kernel deploy --place-file`), the cloud test before prod
+8. On npm: every `@typetorch/*` package except the backend (`@typetorch/backend`, a git repo; `bun install` in the template gets them; `npx
+   @typetorch/cli` works too). Built: kernel patch deploys (`kernel deploy`, or `--place-file`), the cloud test before prod
    deploys, `onStop` at shutdown (kernel 0.3.2), the fleet API, the optional `AnalyticsEngine`, `typetorch access
    push` (CLI 0.7.3+; servers read it from kernel 0.3.6). Planned, never promise: `typetorch init`, content
-   packs, `typetorch test --unit`, `/tt grant`, a web analytics explorer.
+   packs, `typetorch test --unit`, `/tt grant`.
 9. No GitHub Actions, ever (the owner's rule): never add `.github/workflows`, actions or hosted CI, never suggest
    them.
 
@@ -119,15 +119,16 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
 7. **Finish** with "What you need to do" (numbered, filled in): fill the ids; Game Settings (HTTP on, Studio API access
    on); create the Open Cloud key (`asset:read`, `asset:write`, Luau Execution read/write (the cloud test before every
    prod deploy), `universe-messaging-service:publish`, DataStore `universe-datastores.objects:read` + `:create` +
-   `:update` (the shared deploy number), place publishing for `kernel deploy`, optional `universe:write` for `access
-   push` and `fleet setup`; not `universe:read` or `legacy-asset:manage`, which API keys can't get today); store it in
-   `~/.config/typetorch/<game>.env` as `TYPETORCH_API_KEY=` and put `TYPETORCH_ENV_FILE=~/.config/typetorch/<game>.env`
-   in the repo's `.env`; `bun run typetorch doctor`; `bun run typetorch keys init` + `keys init --fallback`, commit,
-   back up the key files and the env file offline; members in `typetorch.json`, then `bun run typetorch access push`
-   (again after every change); kernel into the place (new place: `kernel deploy --dry-run` then
-   `--replace-place --yes`; place with content: File > Download a Copy, `kernel deploy --dry-run --install
-   --place-file <file> --base <version>`, check the summary, then the same without `--dry-run`; or copy the three
-   kernel folders from `.typetorch/place.rbxl` in Studio and publish); `ServerScriptService.LoadStringEnabled` off in a
+   `:update` (the shared deploy number), the place key's Luau Execution scopes (`universe.place.luau-execution-session:read` and
+   `:write`) plus `asset:read` for `kernel deploy` (`universe.place:write` only for a file); no `universe:write` /
+   `universe:read`, and not `legacy-asset:manage`, which API keys can't get today; put `OPENCLOUD_API_KEY=` in the game repo's
+   `.env` (gitignored); `bun run typetorch doctor`; `bun run typetorch keys init` + `keys init --fallback`, commit, back up the
+   key files and the `.env` offline; members in `typetorch.json`, then `bun run typetorch access push` (again after every
+   change); kernel into the place (new place: `kernel deploy --dry-run` then `--replace-place --yes`; place with content:
+   `kernel deploy --dry-run --install` patches the live place with no download when its "Allow place to be updated using Save
+   Place API" setting is on, else File > Download a Copy and `kernel deploy --dry-run --install --place-file <file> --base
+   <version>`; check the summary, then the same without `--dry-run`; or copy the three kernel folders from
+   `.typetorch/place.rbxl` in Studio and publish); `ServerScriptService.LoadStringEnabled` off in a
    live game (on only in a test place for remote-claude's `run_luau`; `doctor` reports it); remove the old scripts in
    Studio just before the first deploy; data
    library + `DataHost` in the place; test in Studio (`bun run watch` + `bun run studio`, Play); check F9 `[TypeTorch]
@@ -140,10 +141,13 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
 
 ## Kernel updates (only when the user asks)
 
-Manual, and the one flow where you run `kernel deploy`: the user downloads a copy in Studio (File > Download a Copy) and
-gives you the file and its place version; run `bun run typetorch kernel deploy --dry-run --place-file <file> --base
-<version>`, read the summary (only the kernel folders may change), show it and ask; after the user's yes, the same
-command without `--dry-run` plus `--yes` publishes (`kernel restore <file>` with the downloaded copy undoes it). Or, with the Roblox Studio MCP
-and the place open, replace the three kernel folders in Studio from `node_modules/@typetorch/kernel` and the user
-publishes from Studio. Then the user joins a fresh server: F9 shows `[TypeTorch] kernel <new version>`. Details:
+Manual, and the one flow where you run `kernel deploy`. Run `bun run typetorch kernel deploy --dry-run` (it patches the kernel
+folders and the kernel's settings into the place's newest published version and saves nothing), read the summary (only the
+kernel folders may change), show it and ask. After the user's yes, the same command without `--dry-run` plus `--yes` saves and
+publishes through Luau Execution, with no download; that needs the place's "Allow place to be updated using Save Place API"
+setting on. Undo: `bun run typetorch kernel restore --version <the version before>`. If that setting is off (a Studio-made
+place), the user downloads a copy in Studio (File > Download a Copy) and gives you the file and its place version; then
+`kernel deploy --dry-run --place-file <file> --base <version>` and, after the user's yes, the same with `--yes` (`kernel restore
+<file>` undoes it). Or, with the Roblox Studio MCP and the place open, replace the three kernel folders in Studio from
+`node_modules/@typetorch/kernel` and the user publishes from Studio. Then the user joins a fresh server: F9 shows `[TypeTorch] kernel <new version>`. Details:
 AGENTS.md "Updating the kernel in a game (agents)".
