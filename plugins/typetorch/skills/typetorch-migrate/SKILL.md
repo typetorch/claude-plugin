@@ -23,13 +23,16 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
 5. No new RemoteEvents, `loadstring`, `_G`, disabled guards or settings changes.
 6. Don't change player data formats, store names or keys.
 7. Never invent ids: the user's, or placeholder `1`.
-8. On npm: every `@typetorch/*` package except the backend (`@typetorch/backend`, a git repo; `bun install` in the template gets them; `npx
-   @typetorch/cli` works too). Built: kernel patch deploys (`kernel deploy`, or `--place-file`), the cloud test before prod
+8. On npm: `@typetorch/framework`, `kernel`, `transformer`, `cli` (alias `tt`) and `dev-server` (`bun install` in the
+   template gets them; `npx @typetorch/cli` works too); not on npm: the backend and the Studio plugin (GitHub releases). Built: kernel patch deploys (`kernel deploy`, or `--place-file`), the cloud test before prod
    deploys, `onStop` at shutdown (kernel 0.3.2), the fleet API, the optional `AnalyticsEngine`, `typetorch access
-   push` (CLI 0.7.3+; servers read it from kernel 0.3.6). Planned, never promise: `typetorch init`, content
-   packs, `typetorch test --unit`, `/tt grant`.
-9. No GitHub Actions, ever (the owner's rule): never add `.github/workflows`, actions or hosted CI, never suggest
-   them.
+   push` (CLI 0.7.3+; servers read it from kernel 0.3.8), `typetorch init` (CLI 0.10; a user step that sets up a
+   new game or repairs one, never run it yourself), `typetorch serve` (CLI 0.11+) and `typetorch mcp` for the Studio
+   loop, the debug macros in `@typetorch/transformer/macros` (transformer 0.3+), goblox (optional, CLI 0.16+) and the
+   darklua production pack (CLI 0.17+). Planned, never promise: content packs, `typetorch test --unit`,
+   `/tt grant`.
+9. No CI for the game, ever (the owner's rule): never add `.github/workflows`, actions or hosted CI to the game repo,
+   never suggest them.
 
 ## Procedure
 
@@ -44,15 +47,22 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
 3. **Toolchain** (branch `typetorch-migration`):
    - The reference template next to the game: `../template` (clone https://github.com/typetorch/template there if
      missing). Every `@typetorch/*` package comes from npm; no other checkouts.
-   - **The template decides**: copy its `package.json` deps/devDeps/overrides (`@typetorch/framework`,
-     `@typetorch/kernel`, devDependencies `@typetorch/transformer`, `@typetorch/cli`, `@typetorch/dev-server`, all npm
-     versions; no Flamework), `tsconfig.json` (`include` src only, `typeRoots` `@rbxts` + `@typetorch`,
-     `types: ["types","compiler-types"]`, `plugins`: `rbxts-transform-debug` then `@typetorch/transformer`),
+   - **The template decides the files, npm the versions**: copy its `package.json` deps/devDeps/overrides
+     (`@typetorch/framework`, `@typetorch/kernel`, devDependencies `@typetorch/transformer`, `@typetorch/cli`,
+     `@typetorch/dev-server`; no Flamework) but take the `@typetorch/*` versions from npm (`bun add <pkg>@latest`,
+     `-d` for the dev ones: the template pins CLI 0.9.1, transformer 0.2.1, framework 0.5.0), and leave out its
+     `rbxts-transform-debug`; `tsconfig.json` (`include` src only, `typeRoots` `@rbxts` + `@typetorch`,
+     `types: ["types","compiler-types"]`, `plugins`: only `@typetorch/transformer`),
      `default.project.json` (payload: a `Model` with `Server`/`Shared`/`Client`/`include`, mapping `@rbxts` and only
      `@typetorch/framework`; keep the old one as `legacy.project.json`), `studio.project.json`, `rokit.toml` (rojo
-     7.7.0-rc.1, lune 0.10.5), `scripts/build-info.ts`. Compile only via `bun run build` or `bunx rbxtsc`
-     (`npx rbxtsc` runs a placeholder package in Bun projects on Windows).
-   - Scripts: `build` = `bun scripts/build-info.ts && rbxtsc`, `watch`, `studio` = `rojo serve studio.project.json`,
+     7.7.0-rc.1, lune 0.10.5; then `rokit add seaofvoices/darklua` for the prod pack), `scripts/build-info.ts` (change
+     its `rbxts-transform-debug` import line to `@typetorch/transformer/macros`). Compile only via `bun run build` or
+     `bunx rbxtsc` (`npx rbxtsc` runs a placeholder package in Bun projects on Windows). goblox only if asked
+     (`bun add -d goblox`; it ignores every tsconfig plugin but `@typetorch/transformer`).
+   - Debug macros: `$print`/`$warn`/`$error`/`$assert`/`$dbg` from `@typetorch/transformer/macros`. A game on
+     `rbxts-transform-debug`: drop its tsconfig plugin, rewrite the imports (also in `scripts/build-info.ts`), then
+     `bun remove rbxts-transform-debug`.
+   - Scripts: `build` = `bun scripts/build-info.ts && rbxtsc` (it must end with the compiler), `watch`, `studio` = `rojo serve studio.project.json`,
      `typetorch` = `typetorch`. Leave out `packages`, `postinstall` and `scripts/packages.ts` (an optional local
      override for unreleased framework/kernel changes; only if the user asks).
    - Bun only (delete other lockfiles). `rokit install`, then `bun install`.
@@ -62,7 +72,7 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
      owner), `defaultBranch: "prod"`, `branches: {"main": "prod"}`, `channels: {"prod": "prod"}`, `members: {}`,
      `devBadgeId: null`, `approval: "prod"`, `kernel: "node_modules/@typetorch/kernel"`. Never copy the template's
      signing fields. Servers see `members`/`revoked`/`devBadgeId` only after the user's `typetorch access push`
-     (kernel 0.3.6+): list it whenever they change.
+     (kernel 0.3.8+): list it whenever they change.
    - `src/server/boot.ts` → `startServer(kernel, { modules: [script.Parent!.FindFirstChild("services")!], build: BUILD })`;
      `src/client/boot.ts` → `startClient(... "controllers" ...)`; `BUILD` from `../shared/build` (generated).
    - `bun run build`, commit. It passes for Knit/plain projects; a Flamework project fails on its `@flamework/core`
@@ -75,13 +85,20 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
    - **Flamework projects are mostly a swap:** same decorator and lifecycle names, imports from
      `@typetorch/framework` (also `Modding`, `Reflect`, `t`; custom decorators use
      `@metadata typetorch:parameters injectable`), `extends Module` + `super()`, `@flamework/networking` →
-     `createNetwork` (`predict` → `emit`, `invokeWithTimeout` in seconds), components → observers.
+     `createNetwork` (`predict` → `emit`, `invokeWithTimeout` in seconds: the codemod keeps the arguments, so grep for
+     it and turn millisecond values like `5000` into seconds), components → observers.
      `Dependency<T>()` stays (from `@typetorch/framework`): the
      cycle breaker (with `Lazy<T>`) and the way plain classes reach modules, from `onInit` on; move calls in
      constructors, field initializers and module top level into methods. Then `bun remove` every `@flamework/*` and
      `rbxts-transformer-flamework`, delete `flamework.build`, `flamework.json`, `include/flamework`. Type ids changed
      format: data saved under Flamework ids won't match (flag it). The swap-safety pass is the real work.
-   - Swap safety: everything in `this.trove`; no module-level state (instance fields, or
+   - Swap safety: everything in `this.trove`, and no cleanup function calls `trove.remove`/`add`/`extend` (it throws
+     while cleaning; before framework 0.5.2 that aborts the whole generation stop; a child from `trove.extend()` is
+     cleaned by its parent anyway); `this.ctx.persist`/`playerState` and `Dependency<T>()` assigned in `onInit` or
+     `onStart`, never in field initializers or constructors; libraries with module-level setup (Vide's stepper,
+     TopbarPlus, anything that connects or makes GUIs when required) stepped from the trove or loaded once outside the
+     payload; looped animations and cutscenes persisted and resumed after a swap; `TypeTorch.onSwapOut` (runs before
+     any cleanup) for last-resort saves; no module-level state (instance fields, or
      `this.ctx.persist("key.v1", () => init)` with plain data only; per-player maps via
      `this.ctx.playerState("key.v1", init)`, removed on a real leave); players via `onPlayerAdded(player, playerTrove)` /
      `observePlayers`, idempotent (persisted set for one-time effects), real leaves via
@@ -97,8 +114,9 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
      per generation (persist plain values); `popIn/popOut/bump`; one `PopupQueue`.
    - Player data: the library lives in the place (`ServerStorage.Packages.<Lib>` + a `DataHost` Script, user steps),
      handles in `persist`, load on join, release on real leave, store names split by `TypeTorch.channel`. Library
-     loads, saves and releases run as jobs on DataHost's thread (`library.TypeTorchJobs`): a deploy stops the
-     generation's threads mid-call, which jams the library for that player. ProfileStore or ProfileService: use the
+     loads, saves and releases run as jobs on DataHost's thread (`library.TypeTorchJobs`), or with
+     `TypeTorch.runDetached` when the place runs kernel 0.3.8+ (the guide's option B; DataHost then only requires the
+     library): a deploy stops the generation's threads mid-call, which jams the library for that player. ProfileStore or ProfileService: use the
      Player data guide's `DataService` for that library (keep its `TypeTorchTest` line: place scripts never run in the
      cloud test, so waiting for `DataHost` there fails every prod deploy). Developer products: the PurchaseId goes into the
      profile with the grant, `PurchaseGranted` only after a save holds it (`grantOnce`), never only `persist`.
@@ -106,32 +124,35 @@ Before/after code for every pattern: https://github.com/typetorch/docs/blob/main
    - The cloud test runs `onInit`/`onStart` against the live game's data (real DataStores, MemoryStores,
      MessagingService, HTTP; no players; `TypeTorch.channel` is `dev` there with CLI 0.7.3 or newer, so only
      channel-split stores point at dev data; the `AnalyticsEngine` sends nothing): guard global resets,
-     MessagingService publishes and "server started" rows with
-     `workspace:GetAttribute("TypeTorchTest")`, and list the guards in `MIGRATION_NOTES.md`. Count MessagingService
-     topics: TypeTorch uses 4 of the 5 an empty server allows.
+     raw MessagingService publishes and "server started" rows with
+     `workspace:GetAttribute("TypeTorchTest")`, and list the guards in `MIGRATION_NOTES.md`. Move MessagingService
+     topics to `TypeTorch.messaging.subscribe/publish` (kernel 0.3.8; one kernel-held topic, no re-subscribe per swap,
+     dev branches don't reach prod, a no-op in the cloud test); messages stay under 1 KiB.
    - Hot assets only if asked: `hotAsset(key, template)`. Analytics only if asked: `new AnalyticsEngine()` on server
-     and client (its backend is a user step).
+     and client, in a low-`loadOrder` module's `onInit` (it starts on the first construction; its backend is a user
+     step).
 5. **Checks:** `bun run build`; `bun run typetorch build` (prints `built <id> ... modules`); `out/shared/net.luau` has
    `t.` guards; the pattern scan prints nothing:
    `git grep -nE "Players\.PlayerAdded\.Connect|new Instance\(\"(Remote|UnreliableRemote)(Event|Function)\"\)|_G\b|@flamework/|Flamework\.(ignite|addPaths)|Knit\.Start" -- src`;
+   review every hit of `git grep -nE "trove\.add\(\(\) =>.*\.(remove|add|extend)\(|invokeWithTimeout\(" -- src` by hand;
    commit, rebuild: no `-dirty`; `bun run typetorch build --branch prod`; `rojo build studio.project.json -o .typetorch/studio-check.rbxl`.
 6. **Stop** at user actions (rule 2).
 7. **Finish** with "What you need to do" (numbered, filled in): fill the ids; Game Settings (HTTP on, Studio API access
    on); create the Open Cloud key (`asset:read`, `asset:write`, Luau Execution read/write (the cloud test before every
    prod deploy), `universe-messaging-service:publish`, DataStore `universe-datastores.objects:read` + `:create` +
-   `:update` (the shared deploy number), the place key's Luau Execution scopes (`universe.place.luau-execution-session:read` and
-   `:write`) plus `asset:read` for `kernel deploy` (`universe.place:write` only for a file); no `universe:write` /
-   `universe:read`, and not `legacy-asset:manage`, which API keys can't get today; put `OPENCLOUD_API_KEY=` in the game repo's
-   `.env` (gitignored); `bun run typetorch doctor`; `bun run typetorch keys init` + `keys init --fallback`, commit, back up the
-   key files and the `.env` offline; members in `typetorch.json`, then `bun run typetorch access push` (again after every
-   change); kernel into the place (new place: `kernel deploy --dry-run` then `--replace-place --yes`; place with content:
-   `kernel deploy --dry-run --install` patches the live place with no download when its "Allow place to be updated using Save
-   Place API" setting is on, else File > Download a Copy and `kernel deploy --dry-run --install --place-file <file> --base
-   <version>`; check the summary, then the same without `--dry-run`; or copy the three kernel folders from
-   `.typetorch/place.rbxl` in Studio and publish); `ServerScriptService.LoadStringEnabled` off in a
+   `:update` (the shared deploy number and the signed settings: `access push`, `backend setup`), and the place key's Luau
+   Execution scopes (`universe.place.luau-execution-session:read` and `:write`) plus `asset:read` for `kernel deploy`
+   (`universe.place:write` only to publish a place file: `--replace-place`, `--place-file`, `kernel restore <file>`); no `universe:write` / `universe:read`, and not `legacy-asset:manage`, which API keys
+   can't get today; put `OPENCLOUD_API_KEY=` in the game repo's `.env` (gitignored); `bun run typetorch doctor`;
+   `bun run typetorch keys init` + `keys init --fallback`, commit, back up the key files and the `.env` offline; members in
+   `typetorch.json`, then `bun run typetorch access push` (again after every change); kernel into the place (new place:
+   `kernel deploy --dry-run` then `--replace-place --yes`; place with content: `kernel deploy --dry-run --install` patches the
+   live place with no download when its "Allow place to be updated using Save Place API" setting is on, else File > Download a
+   Copy and `kernel deploy --dry-run --install --place-file <file> --base <version>`; check the summary, then the same without
+   `--dry-run`; or copy the three kernel folders from `.typetorch/place.rbxl` in Studio and publish); `ServerScriptService.LoadStringEnabled` off in a
    live game (on only in a test place for remote-claude's `run_luau`; `doctor` reports it); remove the old scripts in
    Studio just before the first deploy; data
-   library + `DataHost` in the place; test in Studio (`bun run watch` + `bun run studio`, Play); check F9 `[TypeTorch]
+   library + `DataHost` in the place; test in Studio (the TypeTorch Studio plugin + `bun run typetorch serve`, Play); check F9 `[TypeTorch]
    kernel ...`; dev branch deploy + `/tt new dev` + two deploys while playing (+ a product bought during a deploy;
    after each deploy read Server > Status "Health window: n/3 errors": 3 errors in 30 s roll every server back, so fix
    them or set `typetorch.json` `"health": { "errors": ... }` above the count, kernel 0.3.7+);
@@ -147,7 +168,7 @@ kernel folders may change), show it and ask. After the user's yes, the same comm
 publishes through Luau Execution, with no download; that needs the place's "Allow place to be updated using Save Place API"
 setting on. Undo: `bun run typetorch kernel restore --version <the version before>`. If that setting is off (a Studio-made
 place), the user downloads a copy in Studio (File > Download a Copy) and gives you the file and its place version; then
-`kernel deploy --dry-run --place-file <file> --base <version>` and, after the user's yes, the same with `--yes` (`kernel restore
-<file>` undoes it). Or, with the Roblox Studio MCP and the place open, replace the three kernel folders in Studio from
+`kernel deploy --dry-run --place-file <file> --base <version>` and, after the user's yes, the same with `--yes`
+(`kernel restore <file>` undoes it). Or, with the Roblox Studio MCP and the place open, replace the three kernel folders in Studio from
 `node_modules/@typetorch/kernel` and the user publishes from Studio. Then the user joins a fresh server: F9 shows `[TypeTorch] kernel <new version>`. Details:
 AGENTS.md "Updating the kernel in a game (agents)".

@@ -5,7 +5,7 @@ hot-swap deploys for roblox-ts Roblox games.
 
 ## Install
 
-In Claude Code (works once this repo is on GitHub as `typetorch/claude-plugin`):
+In Claude Code:
 
 ```text
 /plugin marketplace add typetorch/claude-plugin
@@ -20,6 +20,9 @@ claude plugin install typetorch@typetorch
 ```
 
 From a local checkout: `claude plugin marketplace add ./claude-plugin`.
+
+`typetorch init` (the CLI's guided setup) adds this marketplace by itself when it offers to start Claude Code at the
+end.
 
 ## Plugins
 
@@ -45,8 +48,20 @@ plugins/typetorch/skills/typetorch-migrate/SKILL.md the skill
 
 Check changes with `claude plugin validate .` and `claude plugin validate ./plugins/typetorch`.
 
-**Planned:** more skills (framework, deploy, assets, the UI kit), a TypeTorch MCP server and a Claude Code mod
-(deploy pane, status line, `/tt` commands, toasts).
+## The TypeTorch MCP server
+
+Not part of this plugin: the TypeTorch CLI is an MCP server itself (`typetorch mcp`, CLI 0.11+). It lets an agent run
+the Studio loop (`typetorch serve`) and drive the attached Studio. Add it from the game repo:
+
+```sh
+claude mcp add typetorch -- bunx typetorch mcp
+```
+
+Tools: `serve_status`, `serve_start`, `serve_stop`, `serve_logs`, `studio_logs`, `studio_reconnect`, `studio_play`,
+`studio_stop`.
+
+**Planned:** more skills (framework, deploy, assets, the UI kit) and a Claude Code mod (deploy pane, status line,
+`/tt` commands, toasts).
 
 ## License
 
